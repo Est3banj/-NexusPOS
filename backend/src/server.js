@@ -3,16 +3,14 @@
  * 
  * Configurado para:
  * - PostgreSQL (Supabase) o SQLite local
- * - CORS restrictivo
- * - Bcryptjs para contraseñas
- * - Migraciones automáticas
+ * - CORS restrictivo para Vercel frontend
+ * - Sin static serving (frontend en Vercel)
  */
 
 require('dotenv').config();
 
 const express = require('express');
 const cors = require('cors');
-const path = require('path');
 
 // Import db for initialization
 const db = require('./db');
@@ -38,29 +36,34 @@ const { runMigrations } = require('./migrations/run');
 const PORT = process.env.PORT || 10000;
 const HOST = process.env.HOST || '0.0.0.0';
 
-// CORS Configuration - Whitelist de dominios producción
+// CORS Configuration - Whitelist exacta para Vercel
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'https://nexus-pos-delta.vercel.app',
+  'https://nexus-pos-m0rz.onrender.com'
+];
+
 const corsOptions = {
   origin: function (origin, callback) {
-    const allowedOrigins = [
-      process.env.FRONTEND_URL || 'http://localhost:3000',
-      'https://nexus-pos-m0rz.onrender.com',
-      'https://nexus-pos-delta.vercel.app'
-    ].filter(Boolean);
-    
-    // Allow no-origin requests (mobile apps, Postman)
+    // Allow no-origin requests (Postman, curl)
     if (!origin) return callback(null, true);
     
-    if (allowedOrigins.includes(origin)) {
+    // Normalize origin (remove trailing slash)
+    const normalizedOrigin = origin.replace(/\/$/, '');
+    const normalizedAllowed = allowedOrigins.map(o => o.replace(/\/$/, ''));
+    
+    if (normalizedAllowed.includes(normalizedOrigin)) {
       callback(null, true);
     } else {
       console.log('[CORS] Blocked origin:', origin);
       callback(new Error('Not allowed by CORS'));
     }
   },
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'HEAD'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
-  maxAge: 86400 // 24 hours
+  maxAge: 86400
 };
 
 // Create Express app
@@ -82,23 +85,26 @@ app.use(timestampsMiddleware);
 app.use(loggingMiddleware);
 
 // ============================================================================
-// Health Check (sin DB para verificar que el server funciona)
+// API Routes - BEFORE any static handling
 // ============================================================================
 
+// Health Check - FIRST route
 app.get('/api/health', async (req, res) => {
   let dbStatus = 'unknown';
+  let dbError = null;
   
   try {
-    // Test DB connection
     if (db.isProduction) {
       const result = await db.db.query('SELECT 1 as test');
-      dbStatus = result.rows ? 'connected' : 'error';
+      dbStatus = result.rows && result.rows.length > 0 ? 'connected' : 'empty';
     } else {
       db.db.prepare('SELECT 1').get();
       dbStatus = 'connected';
     }
   } catch (error) {
-    dbStatus = `error: ${error.message}`;
+    dbStatus = 'error';
+    dbError = error.message;
+    console.error('[Health] DB Error:', error.message);
   }
   
   res.json({ 
@@ -106,17 +112,15 @@ app.get('/api/health', async (req, res) => {
     timestamp: db.getServerTime(),
     uptime: process.uptime(),
     database: dbStatus,
+    dbError: dbError,
     environment: db.isProduction ? 'production' : 'development'
   });
 });
 
+// Also handle HEAD for health checks
 app.head('/api/health', (req, res) => {
   res.sendStatus(200);
 });
-
-// ============================================================================
-// API Routes
-// ============================================================================
 
 // Products routes
 app.use('/api/products', productsRoutes);
@@ -134,22 +138,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/customers', customersRoutes);
 
 // ============================================================================
-// Static Files (for production)
-// ============================================================================
-
-// Serve static files from frontend build
-const staticPath = process.env.STATIC_PATH || path.join(__dirname, '..', '..', 'frontend', 'dist');
-app.use(express.static(staticPath));
-
-// SPA fallback
-app.get('*', (req, res) => {
-  if (!req.path.startsWith('/api')) {
-    res.sendFile(path.join(staticPath, 'index.html'));
-  }
-});
-
-// ============================================================================
-// Error Handling - Global Error Handler
+// Error Handling - Global Error Handler (MUST be last)
 // ============================================================================
 
 app.use(errorHandlingMiddleware);
@@ -159,6 +148,9 @@ app.use(errorHandlingMiddleware);
 // ============================================================================
 
 async function startServer() {
+  console.log('[Server] Starting...');
+  console.log('[Server] Database:', db.isProduction ? 'PostgreSQL (Supabase)' : 'SQLite (local)');
+  
   // Run migrations for PostgreSQL
   if (db.isProduction) {
     try {
@@ -166,7 +158,6 @@ async function startServer() {
       console.log('[Server] Migrations completed');
     } catch (error) {
       console.error('[Server] Migration failed:', error.message);
-      // Continue anyway - tables might already exist
     }
   }
 

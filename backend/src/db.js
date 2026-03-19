@@ -14,12 +14,28 @@ let db;
 if (isProduction) {
   // PostgreSQL - Supabase/Production
   const { Pool } = require('pg');
+  
+  // Parse DATABASE_URL and add sslmode
+  let connectionString = process.env.DATABASE_URL;
+  if (!connectionString.includes('sslmode')) {
+    connectionString += connectionString.includes('?') ? '&sslmode=require' : '?sslmode=require';
+  }
+  
   const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false }
+    connectionString: connectionString,
+    ssl: { 
+      rejectUnauthorized: false,
+      requestCert: true,
+      version: 'TLSv1.2'
+    },
+    // Timeout configurations
+    connectionTimeoutMillis: 10000,
+    idleTimeoutMillis: 30000,
+    // Force IPv4
+    host: undefined // Let pg resolve DNS
   });
   db = pool;
-  console.log('[DB] Connected to PostgreSQL (Supabase)');
+  console.log('[DB] Connecting to PostgreSQL (Supabase)...');
 } else {
   // SQLite - Desarrollo local
   const Database = require('better-sqlite3');
