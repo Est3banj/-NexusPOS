@@ -10,7 +10,7 @@ import { CashPayment } from './components/CashPayment';
 import { Login } from './components/Login';
 import { InitialSetup } from './components/InitialSetup';
 import { ProductImageUpload } from './components/ProductImageUpload';
-import { ProductSearchWithDropdown } from './components/ProductSearch';
+import { ProductSearchDropdown } from './components/ProductSearch';
 import { BarcodeInput } from './components/BarcodeInput';
 import { UserManagement } from './components/UserManagement';
 import Reports from './pages/Reports';
@@ -468,7 +468,7 @@ function NewSaleView({ products, onSale }: NewSaleViewProps) {
 
         {showSearch && (
           <div className="sale-products__search-wrapper">
-            <ProductSearchWithDropdown
+            <ProductSearchDropdown
               products={products}
               onSelect={addToCart}
               onClose={() => setShowSearch(false)}
