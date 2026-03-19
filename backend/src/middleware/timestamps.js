@@ -86,15 +86,55 @@ function loggingMiddleware(req, res, next) {
 }
 
 /**
- * Error handling middleware
+ * Error handling middleware - Global Error Handler
+ * 
+ * Sanitiza errores para producción - no expone stack traces.
+ * Loggea errores internamente para debugging.
  */
 function errorHandlingMiddleware(err, req, res, next) {
-  console.error('[Error]', err);
-  
-  res.status(500).json({
-    error: 'Internal server error',
-    message: process.env.NODE_ENV === 'development' ? err.message : undefined
+  // Log error internally
+  console.error('[Error]', {
+    message: err.message,
+    stack: err.stack,
+    path: req.path,
+    method: req.method,
+    timestamp: new Date().toISOString()
   });
+  
+  // Handle specific error types
+  if (err.name === 'JsonWebTokenError') {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+  
+  if (err.name === 'TokenExpiredError') {
+    return res.status(401).json({ error: 'Token expired' });
+  }
+  
+  // CORS error
+  if (err.message === 'Not allowed by CORS') {
+    return res.status(403).json({ error: 'Origin not allowed' });
+  }
+  
+  // Database errors
+  if (err.code === '23505') { // PostgreSQL unique violation
+    return res.status(409).json({ error: 'Duplicate entry' });
+  }
+  
+  if (err.code === '23503') { // PostgreSQL foreign key violation
+    return res.status(400).json({ error: 'Invalid reference' });
+  }
+  
+  // Default: 500 Internal Server Error
+  // Only expose message in development
+  const response = {
+    error: 'Internal server error'
+  };
+  
+  if (process.env.NODE_ENV === 'development' || !db.isProduction) {
+    response.message = err.message;
+  }
+  
+  res.status(500).json(response);
 }
 
 module.exports = {

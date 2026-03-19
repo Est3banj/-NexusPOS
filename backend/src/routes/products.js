@@ -13,9 +13,9 @@ const db = require('../db');
  * GET /api/products
  * Get all products
  */
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const products = db.products.getAll();
+    const products = await db.products.getAll();
     res.json(products);
   } catch (error) {
     console.error('[products] GET all error:', error);
@@ -27,9 +27,9 @@ router.get('/', (req, res) => {
  * GET /api/products/:id
  * Get product by ID
  */
-router.get('/:id', (req, res) => {
+router.get('/:id', async (req, res) => {
   try {
-    const product = db.products.getById(req.params.id);
+    const product = await db.products.getById(req.params.id);
     if (!product) {
       return res.status(404).json({ error: 'Product not found' });
     }
@@ -44,9 +44,9 @@ router.get('/:id', (req, res) => {
  * GET /api/products/category/:category
  * Get products by category
  */
-router.get('/category/:category', (req, res) => {
+router.get('/category/:category', async (req, res) => {
   try {
-    const products = db.products.getByCategory(req.params.category);
+    const products = await db.products.getByCategory(req.params.category);
     res.json(products);
   } catch (error) {
     console.error('[products] GET by category error:', error);
@@ -58,9 +58,9 @@ router.get('/category/:category', (req, res) => {
  * GET /api/products/categories
  * Get all categories
  */
-router.get('/meta/categories', (req, res) => {
+router.get('/meta/categories', async (req, res) => {
   try {
-    const categories = db.products.getCategories();
+    const categories = await db.products.getCategories();
     res.json(categories);
   } catch (error) {
     console.error('[products] GET categories error:', error);
@@ -72,9 +72,9 @@ router.get('/meta/categories', (req, res) => {
  * POST /api/products
  * Create a new product (supports offline sync)
  */
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   try {
-    const { name, category, price, stock, description, imageUrl, localId, updatedAt } = req.body;
+    const { name, category, price, cost, stock, barcode, description, imageUrl, localId, updatedAt } = req.body;
 
     // Validate required fields
     if (!name || !category || price === undefined || stock === undefined) {
@@ -85,9 +85,8 @@ router.post('/', (req, res) => {
 
     // Check if localId already exists (might be a retry from offline)
     if (localId) {
-      const existing = db.products.getByLocalId(localId);
+      const existing = await db.products.getByLocalId(localId);
       if (existing) {
-        // Already synced, return existing
         return res.json({
           ...existing,
           serverTime: db.getServerTime()
@@ -95,11 +94,13 @@ router.post('/', (req, res) => {
       }
     }
 
-    const product = db.products.create({
+    const product = await db.products.create({
       name,
       category,
       price,
+      cost: cost || 0,
       stock,
+      barcode,
       description,
       imageUrl,
       localId,
@@ -122,13 +123,13 @@ router.post('/', (req, res) => {
  * PUT /api/products/:id
  * Update a product (supports offline sync with LWW)
  */
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const { name, category, price, stock, description, imageUrl, updatedAt, deleted } = req.body;
+    const { name, category, price, cost, stock, barcode, description, imageUrl, updatedAt, deleted } = req.body;
 
     // Check if product exists
-    const existing = db.products.getById(id);
+    const existing = await db.products.getById(id);
     if (!existing) {
       return res.status(404).json({ error: 'Product not found' });
     }
@@ -144,11 +145,13 @@ router.put('/:id', (req, res) => {
       });
     }
 
-    const updated = db.products.update(id, {
+    const updated = await db.products.update(id, {
       name,
       category,
       price,
+      cost,
       stock,
+      barcode,
       description,
       imageUrl,
       updatedAt,
@@ -171,17 +174,17 @@ router.put('/:id', (req, res) => {
  * DELETE /api/products/:id
  * Delete a product (soft delete)
  */
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
   try {
     const id = parseInt(req.params.id);
 
     // Check if product exists
-    const existing = db.products.getById(id);
+    const existing = await db.products.getById(id);
     if (!existing) {
       return res.status(404).json({ error: 'Product not found' });
     }
 
-    db.products.delete(id);
+    await db.products.delete(id);
     console.log(`[products] Deleted product ${id}`);
 
     res.json({ 
@@ -191,6 +194,26 @@ router.delete('/:id', (req, res) => {
   } catch (error) {
     console.error('[products] DELETE error:', error);
     res.status(500).json({ error: 'Failed to delete product' });
+  }
+});
+
+/**
+ * GET /api/products/barcode/:code
+ * Get product by barcode
+ */
+router.get('/barcode/:code', async (req, res) => {
+  try {
+    const products = await db.products.getAll();
+    const product = products.find(p => p.barcode === req.params.code);
+    
+    if (!product) {
+      return res.status(404).json({ error: 'Product not found' });
+    }
+    
+    res.json(product);
+  } catch (error) {
+    console.error('[products] GET by barcode error:', error);
+    res.status(500).json({ error: 'Failed to fetch product by barcode' });
   }
 });
 

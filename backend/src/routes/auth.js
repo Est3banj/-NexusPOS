@@ -2,13 +2,16 @@
  * Auth API Routes
  * 
  * Endpoints for authentication (login, register).
+ * Usa bcryptjs para hashear contraseñas en producción.
  */
 
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
+const bcrypt = require('bcryptjs');
 
 const SESSION_DURATION_MS = 24 * 60 * 60 * 1000;
+const BCRYPT_ROUNDS = 10;
 
 function generateToken(username, userId) {
   const payload = {
@@ -34,9 +37,9 @@ function validateToken(token) {
 
 /**
  * POST /api/auth/register
- * Create a new user (admin only in production, open for setup)
+ * Create a new user - Hashea la contraseña con bcryptjs
  */
-router.post('/register', (req, res) => {
+router.post('/register', async (req, res) => {
   try {
     const { username, password, role } = req.body;
 
@@ -51,9 +54,12 @@ router.post('/register', (req, res) => {
     const validRoles = ['ADMIN', 'EMPLOYEE'];
     const userRole = role && validRoles.includes(role) ? role : 'EMPLOYEE';
 
-    const result = db.users.create({
+    // Hash password with bcrypt
+    const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+
+    const result = await db.users.create({
       username,
-      password,
+      password: passwordHash,
       role: userRole,
       createdAt: Date.now(),
       updatedAt: Date.now()
@@ -84,9 +90,9 @@ router.post('/register', (req, res) => {
 
 /**
  * POST /api/auth/login
- * Authenticate user and return token
+ * Authenticate user - Compara password hasheado con bcrypt
  */
-router.post('/login', (req, res) => {
+router.post('/login', async (req, res) => {
   try {
     const { username, password } = req.body;
 
@@ -94,13 +100,16 @@ router.post('/login', (req, res) => {
       return res.status(400).json({ error: 'Username and password are required' });
     }
 
-    const user = db.users.getByUsername(username);
+    const user = await db.users.getByUsername(username);
 
     if (!user) {
       return res.status(401).json({ error: 'User not found' });
     }
 
-    if (user.password !== password) {
+    // Compare password with bcrypt
+    const passwordMatch = await bcrypt.compare(password, user.password);
+    
+    if (!passwordMatch) {
       return res.status(401).json({ error: 'Incorrect password' });
     }
 
@@ -127,7 +136,7 @@ router.post('/login', (req, res) => {
  * GET /api/auth/validate
  * Validate a token
  */
-router.get('/validate', (req, res) => {
+router.get('/validate', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -141,7 +150,7 @@ router.get('/validate', (req, res) => {
       return res.status(401).json({ error: 'Invalid or expired token' });
     }
 
-    const user = db.users.getById(parseInt(validation.payload.sub));
+    const user = await db.users.getById(parseInt(validation.payload.sub));
     if (!user) {
       return res.status(401).json({ error: 'User not found' });
     }
@@ -157,6 +166,60 @@ router.get('/validate', (req, res) => {
   } catch (error) {
     console.error('[auth] GET validate error:', error);
     res.status(500).json({ error: 'Failed to validate token' });
+  }
+});
+
+/**
+ * PUT /api/auth/password
+ * Change user password
+ */
+router.put('/password', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'No token provided' });
+    }
+
+    const token = authHeader.split(' ')[1];
+    const validation = validateToken(token);
+
+    if (!validation.valid) {
+      return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Current and new password required' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'New password must be at least 6 characters' });
+    }
+
+    const user = await db.users.getById(parseInt(validation.payload.sub));
+    if (!user) {
+      return res.status(401).json({ error: 'User not found' });
+    }
+
+    // Verify current password
+    const passwordMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!passwordMatch) {
+      return res.status(401).json({ error: 'Current password is incorrect' });
+    }
+
+    // Hash new password
+    const newPasswordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
+    
+    await db.users.update(user.id, {
+      password: newPasswordHash,
+      updatedAt: Date.now()
+    });
+
+    res.json({ success: true, message: 'Password changed successfully' });
+  } catch (error) {
+    console.error('[auth] PUT password error:', error);
+    res.status(500).json({ error: 'Failed to change password' });
   }
 });
 
