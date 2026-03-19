@@ -51,29 +51,8 @@ function validateToken(token: string): { valid: boolean; payload?: { sub: string
  */
 export async function seedDefaultUsers(): Promise<void> {
   const userCount = await db.users.count();
-  
   if (userCount === 0) {
-    const now = Date.now();
-    
-    // Create default admin user
-    await db.users.add({
-      username: 'admin',
-      password: 'admin123', // Plain for demo - would be hashed in production
-      role: 'ADMIN' as UserRole,
-      createdAt: now,
-      updatedAt: now
-    });
-    
-    // Create default employee user
-    await db.users.add({
-      username: 'empleado',
-      password: 'empleado123', // Plain for demo
-      role: 'EMPLOYEE' as UserRole,
-      createdAt: now,
-      updatedAt: now
-    });
-    
-    console.log('Default users seeded: admin, empleado');
+    console.log('[Auth] No users found. Setup required.');
   }
 }
 

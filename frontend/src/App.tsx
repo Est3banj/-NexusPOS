@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useProducts } from './hooks/useProducts';
 import { useSales } from './hooks/useSales';
 import { useNetworkStatus } from './hooks/useNetworkStatus';
@@ -8,6 +8,7 @@ import { NetworkStatus } from './components/NetworkStatus';
 import { SyncIndicator } from './components/SyncIndicator';
 import { CashPayment } from './components/CashPayment';
 import { Login } from './components/Login';
+import { InitialSetup } from './components/InitialSetup';
 import { ProductImageUpload } from './components/ProductImageUpload';
 import { ProductSearchWithDropdown } from './components/ProductSearch';
 import { UserManagement } from './components/UserManagement';
@@ -45,6 +46,7 @@ function App() {
 function AppContent() {
   const { user, isAuthenticated, logout, hasRole } = useAuth();
   const [currentView, setCurrentView] = useState<View>('products');
+  const [needsSetup, setNeedsSetup] = useState<boolean | null>(null);
   const { isOnline } = useNetworkStatus();
   const {
     products,
@@ -59,7 +61,23 @@ function AppContent() {
     createSale
   } = useSales();
 
-  // Show login if not authenticated
+  useEffect(() => {
+    const checkUsers = async () => {
+      const { userRepository } = await import('./db/repositories/userRepository');
+      const users = await userRepository.getAll();
+      setNeedsSetup(users.length === 0);
+    };
+    checkUsers();
+  }, []);
+
+  if (needsSetup === null) {
+    return null;
+  }
+
+  if (needsSetup) {
+    return <InitialSetup onSetupComplete={() => setNeedsSetup(false)} />;
+  }
+
   if (!isAuthenticated) {
     return <Login />;
   }

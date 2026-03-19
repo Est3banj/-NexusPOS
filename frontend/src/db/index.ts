@@ -62,30 +62,7 @@ export async function clearDatabase(): Promise<void> {
  * Initialize database with default data
  */
 export async function initializeDatabase(): Promise<void> {
-  const userCount = await db.users.count();
-  
-  if (userCount === 0) {
-    const now = Date.now();
-    
-    await db.users.bulkAdd([
-      {
-        username: 'admin',
-        password: 'admin123',
-        role: 'ADMIN',
-        createdAt: now,
-        updatedAt: now
-      },
-      {
-        username: 'empleado',
-        password: 'empleado123',
-        role: 'EMPLOYEE',
-        createdAt: now,
-        updatedAt: now
-      }
-    ]);
-    
-    console.log('[DB] Default users seeded');
-  }
+  console.log('[DB] Database initialized');
 }
 
 /**

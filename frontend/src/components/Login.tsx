@@ -115,16 +115,6 @@ export function Login({ onLoginSuccess }: LoginProps) {
             {isLoading ? 'Ingresando...' : 'Iniciar Sesión'}
           </button>
         </form>
-
-        <div className="login-footer">
-          <p className="login-hint">
-            Credenciales por defecto:
-          </p>
-          <div className="login-credentials">
-            <span><strong>Admin:</strong> admin / admin123</span>
-            <span><strong>Empleado:</strong> empleado / empleado123</span>
-          </div>
-        </div>
       </div>
 
       <style>{`
