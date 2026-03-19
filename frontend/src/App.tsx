@@ -11,6 +11,7 @@ import { Login } from './components/Login';
 import { InitialSetup } from './components/InitialSetup';
 import { ProductImageUpload } from './components/ProductImageUpload';
 import { ProductSearchWithDropdown } from './components/ProductSearch';
+import { BarcodeInput } from './components/BarcodeInput';
 import { UserManagement } from './components/UserManagement';
 import Reports from './pages/Reports';
 import CashClosing from './pages/CashClosing';
@@ -307,13 +308,13 @@ function ProductsView({ products, loading, onAdd, onUpdate, onDelete, canEdit = 
               required
               min="0"
             />
-            <input
-              type="text"
-              className="input"
-              placeholder="Código de barras"
-              value={formData.barcode}
-              onChange={e => setFormData({ ...formData, barcode: e.target.value })}
-            />
+            <div className="product-form__barcode">
+              <label className="input-label">Código de barras</label>
+              <BarcodeInput
+                value={formData.barcode}
+                onChange={(barcode) => setFormData({ ...formData, barcode })}
+              />
+            </div>
             <div className="product-image-upload-wrapper">
               <ProductImageUpload
                 value={formData.imageUrl}
