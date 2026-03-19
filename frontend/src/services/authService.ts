@@ -1,38 +1,18 @@
 /**
  * Authentication Service
  * 
- * Handles login, logout, session management, and JWT token operations.
- * Uses localStorage for session persistence across page refreshes.
+ * Handles login, logout, session management via backend API.
+ * Uses localStorage for token persistence across page refreshes.
  */
 
-import { db } from '../db';
 import type { User, UserRole, AuthSession, LoginCredentials, AuthResponse } from '../types';
+import { API_ENDPOINTS } from '../config/api';
 
-// Session storage keys
 const AUTH_TOKEN_KEY = 'pos_auth_token';
 const AUTH_SESSION_KEY = 'pos_auth_session';
 
-// Default session duration: 24 hours
 const SESSION_DURATION_MS = 24 * 60 * 60 * 1000;
 
-/**
- * Generate a simple JWT-like token (for demo purposes)
- * In production, this would be a real JWT from a backend
- */
-function generateToken(username: string, userId: number): string {
-  const payload = {
-    sub: userId.toString(),
-    username,
-    iat: Date.now(),
-    exp: Date.now() + SESSION_DURATION_MS
-  };
-  // Simple base64 encoding (NOT secure - demo only)
-  return btoa(JSON.stringify(payload));
-}
-
-/**
- * Validate token format and expiration
- */
 function validateToken(token: string): { valid: boolean; payload?: { sub: string; username: string; exp: number } } {
   try {
     const payload = JSON.parse(atob(token));
@@ -45,67 +25,85 @@ function validateToken(token: string): { valid: boolean; payload?: { sub: string
   }
 }
 
-/**
- * Pre-seed default users if database is empty
- * Creates admin and employee accounts
- */
-export async function seedDefaultUsers(): Promise<void> {
-  const userCount = await db.users.count();
-  if (userCount === 0) {
-    console.log('[Auth] No users found. Setup required.');
-  }
-}
-
-/**
- * Auth Service
- * 
- * Provides authentication operations for the POS system.
- * Handles login validation, session management, and token operations.
- */
 export const authService = {
   /**
-   * Authenticate user with username and password
+   * Login user with credentials via API
    */
   async login(credentials: LoginCredentials): Promise<AuthResponse> {
     const { username, password } = credentials;
-    
-    // Find user by username
-    const user = await db.users
-      .where('username')
-      .equals(username)
-      .first();
-    
-    // Validate credentials
-    if (!user) {
-      return { success: false, error: 'Usuario no encontrado' };
+
+    try {
+      const response = await fetch(API_ENDPOINTS.AUTH.LOGIN, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ username, password })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return { success: false, error: data.error || 'Login failed' };
+      }
+
+      localStorage.setItem(AUTH_TOKEN_KEY, data.token);
+      localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify({
+        userId: data.user.id,
+        username: data.user.username,
+        role: data.user.role,
+        token: data.token,
+        expiresAt: data.expiresAt
+      }));
+
+      return {
+        success: true,
+        user: data.user
+      };
+    } catch (error) {
+      console.error('[Auth] Login error:', error);
+      return { success: false, error: 'No se pudo conectar al servidor' };
     }
-    
-    if (user.password !== password) {
-      return { success: false, error: 'Contraseña incorrecta' };
-    }
-    
-    // Generate token
-    const token = generateToken(user.username, user.id!);
-    const expiresAt = Date.now() + SESSION_DURATION_MS;
-    
-    // Create session
-    const session: AuthSession = {
-      userId: user.id!,
-      username: user.username,
-      role: user.role,
-      token,
-      expiresAt
-    };
-    
-    // Store session in localStorage
-    localStorage.setItem(AUTH_TOKEN_KEY, token);
-    localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
-    
-    // Return user without password
-    const { password: _, ...userWithoutPassword } = user;
-    return { success: true, user: userWithoutPassword };
   },
-  
+
+  /**
+   * Register a new user via API
+   */
+  async register(username: string, password: string, role: UserRole = 'ADMIN'): Promise<AuthResponse> {
+    try {
+      const response = await fetch(API_ENDPOINTS.AUTH.REGISTER, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ username, password, role })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return { success: false, error: data.error || 'Registration failed' };
+      }
+
+      localStorage.setItem(AUTH_TOKEN_KEY, data.token);
+      localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify({
+        userId: data.user.id,
+        username: data.user.username,
+        role: data.user.role,
+        token: data.token,
+        expiresAt: data.expiresAt
+      }));
+
+      return {
+        success: true,
+        user: data.user
+      };
+    } catch (error) {
+      console.error('[Auth] Register error:', error);
+      return { success: false, error: 'No se pudo conectar al servidor' };
+    }
+  },
+
   /**
    * Clear authentication session
    */
@@ -113,25 +111,24 @@ export const authService = {
     localStorage.removeItem(AUTH_TOKEN_KEY);
     localStorage.removeItem(AUTH_SESSION_KEY);
   },
-  
+
   /**
    * Get current authenticated session
    */
   getCurrentSession(): AuthSession | null {
     const token = localStorage.getItem(AUTH_TOKEN_KEY);
     const sessionStr = localStorage.getItem(AUTH_SESSION_KEY);
-    
+
     if (!token || !sessionStr) {
       return null;
     }
-    
-    // Validate token
+
     const validation = validateToken(token);
     if (!validation.valid) {
       this.logout();
       return null;
     }
-    
+
     try {
       return JSON.parse(sessionStr);
     } catch {
@@ -139,97 +136,77 @@ export const authService = {
       return null;
     }
   },
-  
+
   /**
    * Check if user is authenticated
    */
   isAuthenticated(): boolean {
-    const session = this.getCurrentSession();
-    return session !== null;
+    return this.getCurrentSession() !== null;
   },
-  
+
   /**
    * Get current user role
    */
   getCurrentRole(): UserRole | null {
-    const session = this.getCurrentSession();
-    return session?.role ?? null;
+    return this.getCurrentSession()?.role ?? null;
   },
-  
+
   /**
    * Check if current user has required role
    */
   hasRole(requiredRole: UserRole): boolean {
     const currentRole = this.getCurrentRole();
     if (!currentRole) return false;
-    
     return currentRole === requiredRole;
   },
-  
+
   /**
    * Refresh session expiration
    */
   refreshSession(): void {
     const session = this.getCurrentSession();
     if (!session) return;
-    
+
     const newExpiresAt = Date.now() + SESSION_DURATION_MS;
     const newSession: AuthSession = {
       ...session,
       expiresAt: newExpiresAt
     };
-    
-    // Generate new token with updated expiration
-    const newToken = generateToken(session.username, session.userId);
-    newSession.token = newToken;
-    
-    localStorage.setItem(AUTH_TOKEN_KEY, newToken);
+
     localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(newSession));
   },
-  
+
   /**
-   * Get user by ID
+   * Get auth token for API calls
    */
-  async getUserById(id: number): Promise<User | undefined> {
-    return db.users.get(id);
+  getToken(): string | null {
+    return localStorage.getItem(AUTH_TOKEN_KEY);
   },
-  
+
   /**
-   * Get all users (admin only)
+   * Validate token with server
    */
-  async getAllUsers(): Promise<User[]> {
-    const users = await db.users.toArray();
-    // Remove passwords from response
-    return users.map(({ password, ...user }) => user as User);
-  },
-  
-  /**
-   * Create a new user (admin only)
-   */
-  async createUser(userData: Omit<User, 'id' | 'createdAt' | 'updatedAt'>): Promise<number> {
-    const now = Date.now();
-    return db.users.add({
-      ...userData,
-      createdAt: now,
-      updatedAt: now
-    });
-  },
-  
-  /**
-   * Update a user
-   */
-  async updateUser(id: number, updates: Partial<Omit<User, 'id' | 'createdAt'>>): Promise<void> {
-    await db.users.update(id, {
-      ...updates,
-      updatedAt: Date.now()
-    });
-  },
-  
-  /**
-   * Delete a user
-   */
-  async deleteUser(id: number): Promise<void> {
-    await db.users.delete(id);
+  async validateToken(): Promise<{ valid: boolean; user?: { id: number; username: string; role: UserRole } }> {
+    const token = this.getToken();
+    if (!token) return { valid: false };
+
+    try {
+      const response = await fetch(API_ENDPOINTS.AUTH.VALIDATE, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return { valid: false };
+      }
+
+      return { valid: true, user: data.user };
+    } catch {
+      return { valid: false };
+    }
   }
 };
 

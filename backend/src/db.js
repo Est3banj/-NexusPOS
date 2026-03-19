@@ -77,6 +77,18 @@ function initializeSchema() {
     CREATE INDEX IF NOT EXISTS sales_deleted ON sales(deleted);
   `);
 
+  // Users table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL UNIQUE,
+      password TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'EMPLOYEE',
+      createdAt INTEGER NOT NULL,
+      updatedAt INTEGER NOT NULL
+    )
+  `);
+
   console.log('[DB] Schema initialized successfully');
 }
 
@@ -361,10 +373,105 @@ const saleOps = {
 // Initialize schema
 initializeSchema();
 
+/**
+ * User operations
+ */
+const userOps = {
+  /**
+   * Create a new user
+   */
+  create(data) {
+    const now = getServerTime();
+    const stmt = db.prepare(`
+      INSERT INTO users (username, password, role, createdAt, updatedAt)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+    
+    try {
+      const result = stmt.run(
+        data.username,
+        data.password,
+        data.role || 'EMPLOYEE',
+        data.createdAt || now,
+        now
+      );
+      return this.getById(result.lastInsertRowid);
+    } catch (error) {
+      if (error.message.includes('UNIQUE constraint failed')) {
+        return { error: 'Username already exists' };
+      }
+      throw error;
+    }
+  },
+
+  /**
+   * Get all users
+   */
+  getAll() {
+    const stmt = db.prepare('SELECT id, username, role, createdAt, updatedAt FROM users ORDER BY username');
+    return stmt.all();
+  },
+
+  /**
+   * Get user by ID
+   */
+  getById(id) {
+    const stmt = db.prepare('SELECT * FROM users WHERE id = ?');
+    return stmt.get(id);
+  },
+
+  /**
+   * Get user by username
+   */
+  getByUsername(username) {
+    const stmt = db.prepare('SELECT * FROM users WHERE username = ?');
+    return stmt.get(username);
+  },
+
+  /**
+   * Update a user
+   */
+  update(id, data) {
+    const now = getServerTime();
+    const existing = this.getById(id);
+    if (!existing) {
+      return null;
+    }
+
+    const stmt = db.prepare(`
+      UPDATE users SET
+        username = ?,
+        password = ?,
+        role = ?,
+        updatedAt = ?
+      WHERE id = ?
+    `);
+
+    stmt.run(
+      data.username ?? existing.username,
+      data.password ?? existing.password,
+      data.role ?? existing.role,
+      now,
+      id
+    );
+
+    return this.getById(id);
+  },
+
+  /**
+   * Delete a user
+   */
+  delete(id) {
+    const stmt = db.prepare('DELETE FROM users WHERE id = ?');
+    return stmt.run(id);
+  }
+};
+
 module.exports = {
   db,
   getServerTime,
   createTimestamp,
   products: productOps,
-  sales: saleOps
+  sales: saleOps,
+  users: userOps
 };

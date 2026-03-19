@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import type { UserRole } from '../types';
+import authService from '../services/authService';
 
 interface InitialSetupProps {
   onSetupComplete: () => void;
@@ -52,12 +53,14 @@ export function InitialSetup({ onSetupComplete }: InitialSetupProps) {
     setIsLoading(true);
 
     try {
-      const { userRepository } = await import('../db/repositories/userRepository');
-      await userRepository.create({
-        username: formData.username.trim(),
-        password: formData.password,
-        role: 'ADMIN' as UserRole
-      });
+      const result = await authService.register(formData.username.trim(), formData.password, 'ADMIN' as UserRole);
+      
+      if (!result.success) {
+        setError(result.error || 'Error al crear el usuario');
+        setIsLoading(false);
+        return;
+      }
+
       onSetupComplete();
     } catch (err: any) {
       setError(err.message || 'Error al crear el usuario');

@@ -1,6 +1,6 @@
 # NexusPOS
 
-Sistema de Punto de Venta (POS) offline-first con React y TypeScript.
+Sistema de Punto de Venta (POS) offline-first con React, TypeScript y backend Node.js.
 
 ## Características
 
@@ -8,6 +8,7 @@ Sistema de Punto de Venta (POS) offline-first con React y TypeScript.
 - **Offline-First**: Funciona sin conexión a internet
 - **PWA**: Instalable como aplicación nativa
 - **Sincronización**: Sync automático cuando hay conexión
+- **Multi-Dispositivo**: Los usuarios se autentican contra el backend, permitiendo acceso desde cualquier dispositivo
 
 ### Funcionalidades
 
@@ -25,46 +26,98 @@ Sistema de Punto de Venta (POS) offline-first con React y TypeScript.
 ### Seguridad
 - Autenticación basada en roles (Admin/Empleado)
 - Permisos diferenciados por rol
-- Sesiones seguras con tokens
+- Sesiones seguras con tokens JWT
+- Contraseñas hasheadas en backend
 
 ## Tecnologías
 
 ### Frontend
 - React 18 + TypeScript
 - Vite (bundler)
-- Dexie.js (IndexedDB)
+- Dexie.js (IndexedDB para offline)
 - Workbox (Service Worker/PWA)
 - Lucide Icons
 
 ### Backend
 - Node.js + Express
-- SQLite
+- SQLite (base de datos compartida)
+- JWT para autenticación
 
 ## Instalación
+
+### Desarrollo (modo separated)
 
 ```bash
 # Clonar repositorio
 git clone https://github.com/Est3banj/NexusPOS.git
 cd NexusPOS
 
+# Instalar dependencias del frontend
+cd frontend && npm install
+
+# Instalar dependencias del backend
+cd ../backend && npm install
+
+# Terminal 1: Iniciar backend (puerto 3001)
+cd backend && npm run dev
+
+# Terminal 2: Iniciar frontend (puerto 3000)
+cd frontend && npm run dev
+```
+
+Accede a: http://localhost:3000
+
+### Producción (backend sirve el frontend)
+
+```bash
 # Instalar dependencias
 cd frontend && npm install
 cd ../backend && npm install
 
-# Ejecutar desarrollo
-cd frontend && npm run dev
+# Build del frontend
+cd frontend && npm run build
+
+# Iniciar backend (sirve el frontend automáticamente)
+cd ../backend && npm start
 ```
+
+Accede a: http://localhost:3001
+
+### Acceso desde otros dispositivos
+
+Para acceder desde celulares o tablets en la misma red:
+
+1. Averiguá tu IP local:
+   ```bash
+   # macOS
+   ifconfig | grep "inet " | grep -v 127.0.0.1
+   
+   # Linux
+   ip addr show | grep "inet "
+   
+   # Windows
+   ipconfig
+   ```
+
+2. Desde otro dispositivo, accede a:
+   ```
+   http://TU-IP-LOCAL:3001
+   ```
+
+**Nota:** El acceso a cámara (escáner de códigos) requiere HTTPS en producción. Para desarrollo local funciona con HTTP.
 
 ## Primeros Pasos
 
-### 1. Configuración Inicial
+### 1. Iniciar Sesión / Registro
 
-Al ejecutar la aplicación por primera vez, apareceré la pantalla de configuración:
+Al ejecutar la aplicación por primera vez, aparecerás en la pantalla de login:
 
-1. Ingresa un **nombre de usuario** (mínimo 3 caracteres)
-2. Establece una **contraseña segura** (mínimo 6 caracteres)
-3. Confirma la contraseña
-4. Haz clic en "Crear Cuenta"
+1. Si no tienes cuenta, haz clic en **"Crear una cuenta"**
+2. Completa el formulario:
+   - Nombre de usuario (mínimo 3 caracteres)
+   - Contraseña (mínimo 6 caracteres)
+   - Confirma la contraseña
+3. Haz clic en **"Crear Cuenta"**
 
 Este será tu usuario **Administrador**.
 
@@ -112,20 +165,27 @@ nexuspos/
 │   ├── src/
 │   │   ├── components/     # Componentes React
 │   │   ├── contexts/       # Contextos (Auth)
-│   │   ├── db/           # Dexie.js y repositorios
-│   │   ├── hooks/        # Custom hooks
-│   │   ├── pages/        # Páginas principales
+│   │   ├── config/        # Configuración de API
+│   │   ├── db/            # Dexie.js y repositorios
+│   │   ├── hooks/         # Custom hooks
+│   │   ├── pages/         # Páginas principales
 │   │   ├── services/      # Servicios (auth, sync)
-│   │   └── types/        # TypeScript interfaces
+│   │   └── types/         # TypeScript interfaces
 │   └── public/
 └── backend/
     └── src/
-        ├── routes/        # API endpoints
-        ├── middleware/    # Express middleware
-        └── db.js         # SQLite setup
+        ├── routes/         # API endpoints
+        ├── middleware/     # Express middleware
+        ├── db.js          # SQLite setup
+        └── server.js      # Entry point
 ```
 
 ## API Endpoints
+
+### Autenticación
+- `POST /api/auth/register` - Registrar nuevo usuario
+- `POST /api/auth/login` - Iniciar sesión
+- `GET /api/auth/validate` - Validar token
 
 ### Productos
 - `GET /api/products` - Listar productos
@@ -139,7 +199,11 @@ nexuspos/
 - `PUT /api/sales/:id` - Actualizar venta
 
 ### Sincronización
-- `POST /api/sync` - Sincronizar cambios
+- `POST /api/sync/batch` - Sincronización batch
+- `GET /api/sync/status` - Estado de sincronización
+
+### Sistema
+- `GET /api/health` - Health check
 
 ## Configuración
 
@@ -147,7 +211,14 @@ nexuspos/
 
 ```env
 PORT=3001
-DATABASE_URL=./database.sqlite
+HOST=0.0.0.0
+DB_PATH=./data/pos.db
+```
+
+### Variables de Entorno (Frontend - Opcional)
+
+```env
+VITE_API_URL=http://localhost:3001
 ```
 
 ### Configuración de PWA
@@ -156,6 +227,29 @@ Edita `frontend/vite.config.ts` para ajustar:
 - Nombre de la aplicación
 - Íconos
 - Tema de colores
+
+## Permisos del Navegador
+
+El sistema necesita los siguientes permisos:
+
+| Permiso | Uso | Cómo solicitarlo |
+|---------|-----|------------------|
+| Cámara | Escáner de códigos de barras | Se pide automáticamente al usar el scanner |
+| Audio | Sonido de beep al escanear | Se usa automáticamente |
+
+### Habilitar permisos manualmente
+
+Si el navegador no pide los permisos automáticamente:
+
+**Chrome (Android):**
+1. Toca el candado 🔒 en la barra de direcciones
+2. Ve a "Configuración del sitio"
+3. Habilita **Cámara**
+
+**Safari (iOS):**
+1. Ve a Ajustes > Safari
+2. Busca "Cámaras y lectores de código QR"
+3. Selecciona "Permitir"
 
 ## Seguridad
 
@@ -168,9 +262,9 @@ Edita `frontend/vite.config.ts` para ajustar:
 
 ### Limitaciones
 
-- Contraseñas almacenadas en texto plano (para demo)
-- JWT simple sin hash (para demo)
+- Contraseñas en texto plano en SQLite (para demo)
 - Para producción: implementar hash bcrypt y JWT real
+- Cámara requiere HTTPS en producción (excepto localhost)
 
 ## Licencia
 

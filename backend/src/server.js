@@ -16,6 +16,7 @@ const db = require('./db');
 const productsRoutes = require('./routes/products');
 const salesRoutes = require('./routes/sales');
 const syncRoutes = require('./routes/sync');
+const authRoutes = require('./routes/auth');
 
 // Import middleware
 const { 
@@ -76,6 +77,9 @@ app.use('/api/sales', salesRoutes);
 // Sync routes
 app.use('/api/sync', syncRoutes);
 
+// Auth routes
+app.use('/api/auth', authRoutes);
+
 // ============================================================================
 // Static Files (for production)
 // ============================================================================
@@ -111,6 +115,9 @@ app.listen(PORT, HOST, () => {
 ║                                                                   ║
 ║  Endpoints:                                                     ║
 ║    GET  /api/health          - Health check                     ║
+║    POST /api/auth/login     - User login                        ║
+║    POST /api/auth/register  - User registration                ║
+║    GET  /api/auth/validate - Token validation                  ║
 ║    GET  /api/products       - List products                    ║
 ║    POST /api/products       - Create product                   ║
 ║    GET  /api/sales          - List sales                      ║

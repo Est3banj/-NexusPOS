@@ -53,9 +53,7 @@ export const serviceWorkerRegistration = {
    * Get the Service Worker URL based on environment
    */
   _getSWUrl(): string {
-    // In development, use the sw.ts directly
-    // In production, use the generated service worker
-    if (process.env.NODE_ENV === 'development') {
+    if (import.meta.env.MODE === 'development') {
       return '/service-worker/sw.ts';
     }
     return '/service-worker.js';

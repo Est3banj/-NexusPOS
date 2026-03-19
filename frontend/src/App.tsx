@@ -8,7 +8,6 @@ import { NetworkStatus } from './components/NetworkStatus';
 import { SyncIndicator } from './components/SyncIndicator';
 import { CashPayment } from './components/CashPayment';
 import { Login } from './components/Login';
-import { InitialSetup } from './components/InitialSetup';
 import { ProductImageUpload } from './components/ProductImageUpload';
 import { ProductSearchDropdown } from './components/ProductSearch';
 import { BarcodeInput } from './components/BarcodeInput';
@@ -47,7 +46,6 @@ function App() {
 function AppContent() {
   const { user, isAuthenticated, logout, hasRole } = useAuth();
   const [currentView, setCurrentView] = useState<View>('products');
-  const [needsSetup, setNeedsSetup] = useState<boolean | null>(null);
   const { isOnline } = useNetworkStatus();
   const {
     products,
@@ -61,23 +59,6 @@ function AppContent() {
     loading: salesLoading,
     createSale
   } = useSales();
-
-  useEffect(() => {
-    const checkUsers = async () => {
-      const { userRepository } = await import('./db/repositories/userRepository');
-      const users = await userRepository.getAll();
-      setNeedsSetup(users.length === 0);
-    };
-    checkUsers();
-  }, []);
-
-  if (needsSetup === null) {
-    return null;
-  }
-
-  if (needsSetup) {
-    return <InitialSetup onSetupComplete={() => setNeedsSetup(false)} />;
-  }
 
   if (!isAuthenticated) {
     return <Login />;

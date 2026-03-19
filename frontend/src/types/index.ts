@@ -146,8 +146,8 @@ export interface User {
   username: string;
   password: string; // plain for demo, would be hashed in production
   role: UserRole;
-  createdAt: number;
-  updatedAt: number;
+  createdAt?: number;
+  updatedAt?: number;
 }
 
 // User without password (for client-side use)
@@ -155,8 +155,8 @@ export interface UserWithoutPassword {
   id?: number;
   username: string;
   role: UserRole;
-  createdAt: number;
-  updatedAt: number;
+  createdAt?: number;
+  updatedAt?: number;
 }
 
 // Auth session state (stored in localStorage)

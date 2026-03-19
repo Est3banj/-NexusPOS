@@ -7,7 +7,7 @@
 
 import React, { createContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import type { UserWithoutPassword, UserRole, AuthState, LoginCredentials, AuthResponse } from '../types';
-import authService, { seedDefaultUsers } from '../services/authService';
+import authService from '../services/authService';
 
 interface AuthContextType extends AuthState {
   login: (credentials: LoginCredentials) => Promise<AuthResponse>;
@@ -16,41 +16,30 @@ interface AuthContextType extends AuthState {
   refreshUser: () => Promise<void>;
 }
 
-// Create context with undefined default (must be provided)
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 interface AuthProviderProps {
   children: ReactNode;
 }
 
-/**
- * AuthProvider - Wraps the application with authentication context
- * 
- * Initializes auth state from localStorage on mount.
- * Provides login/logout methods and role checking.
- */
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<UserWithoutPassword | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Initialize auth state on mount
   useEffect(() => {
     const initializeAuth = async () => {
       try {
-        // Seed default users if needed
-        await seedDefaultUsers();
-        
-        // Check for existing session
         const session = authService.getCurrentSession();
         
         if (session) {
-          // Fetch full user data
-          const dbUser = await authService.getUserById(session.userId);
-          if (dbUser) {
-            const { password: _, ...userWithoutPassword } = dbUser;
-            setUser(userWithoutPassword as UserWithoutPassword);
+          const validation = await authService.validateToken();
+          if (validation.valid && validation.user) {
+            setUser({
+              id: validation.user.id,
+              username: validation.user.username,
+              role: validation.user.role
+            });
           } else {
-            // Session invalid - clear it
             authService.logout();
           }
         }
@@ -65,9 +54,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
     initializeAuth();
   }, []);
 
-  /**
-   * Login user with credentials
-   */
   const login = useCallback(async (credentials: LoginCredentials): Promise<AuthResponse> => {
     const response = await authService.login(credentials);
     
@@ -78,36 +64,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return response;
   }, []);
 
-  /**
-   * Logout current user
-   */
   const logout = useCallback(() => {
     authService.logout();
     setUser(null);
   }, []);
 
-  /**
-   * Check if current user has specific role
-   */
   const hasRole = useCallback((requiredRole: UserRole): boolean => {
     if (!user) return false;
     return user.role === requiredRole;
   }, [user]);
 
-  /**
-   * Refresh user data from database
-   */
   const refreshUser = useCallback(async () => {
-    const session = authService.getCurrentSession();
-    if (!session) {
-      setUser(null);
-      return;
-    }
-
-    const dbUser = await authService.getUserById(session.userId);
-    if (dbUser) {
-      const { password: _, ...userWithoutPassword } = dbUser;
-      setUser(userWithoutPassword as UserWithoutPassword);
+    const validation = await authService.validateToken();
+    if (validation.valid && validation.user) {
+      setUser({
+        id: validation.user.id,
+        username: validation.user.username,
+        role: validation.user.role
+      });
     } else {
       logout();
     }
