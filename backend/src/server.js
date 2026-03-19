@@ -43,8 +43,8 @@ const corsOptions = {
   origin: function (origin, callback) {
     const allowedOrigins = [
       process.env.FRONTEND_URL || 'http://localhost:3000',
-      'https://nexuspos.onrender.com',
-      'https://nexuspos-prod.onrender.com'
+      'https://nexus-pos-m0rz.onrender.com',
+      'https://nexus-pos-delta.vercel.app'
     ].filter(Boolean);
     
     // Allow no-origin requests (mobile apps, Postman)

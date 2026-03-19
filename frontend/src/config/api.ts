@@ -2,19 +2,27 @@
  * API Configuration
  * 
  * Centralized API settings for connecting to the backend server.
- * Uses relative URLs when on same origin as backend (production mode),
- * or explicit URL in development.
+ * 
+ * Development: localhost -> localhost:3001 (relative)
+ * Production (Vercel): Vercel -> Render backend
+ * Production (Render): Render serves both (relative)
  */
 
 function getApiBaseUrl(): string {
-  const envUrl = import.meta.env.VITE_API_URL;
-  if (envUrl) {
-    return envUrl;
+  // Explicit override from env (for custom deployments)
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
   }
-  return '';
+  
+  // Check if running in development (Vite dev server)
+  // Use import.meta.env.DEV which is true only in dev
+  if (import.meta.env.DEV) {
+    return ''; // Use relative URLs (localhost:3001)
+  }
+  
+  // Production: Vercel frontend -> Render backend
+  return 'https://nexus-pos-m0rz.onrender.com';
 }
-
-const API_BASE_URL = getApiBaseUrl();
 const API_PREFIX = '/api';
 
 function buildUrl(path: string): string {
