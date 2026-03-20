@@ -24,9 +24,7 @@ if (isProduction) {
   const pool = new Pool({
     connectionString: connectionString,
     ssl: { 
-      rejectUnauthorized: false,
-      requestCert: true,
-      version: 'TLSv1.2'
+      rejectUnauthorized: false
     },
     // Timeout configurations
     connectionTimeoutMillis: 10000,
