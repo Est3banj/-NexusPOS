@@ -15,22 +15,14 @@ if (isProduction) {
   // PostgreSQL - Supabase/Production
   const { Pool } = require('pg');
   
-  // Parse DATABASE_URL and add sslmode
+  // Parse DATABASE_URL
   let connectionString = process.env.DATABASE_URL;
-  if (!connectionString.includes('sslmode')) {
-    connectionString += connectionString.includes('?') ? '&sslmode=require' : '?sslmode=require';
-  }
   
   const pool = new Pool({
     connectionString: connectionString,
-    ssl: { 
-      rejectUnauthorized: false
-    },
-    // Timeout configurations
+    ssl: false,
     connectionTimeoutMillis: 10000,
-    idleTimeoutMillis: 30000,
-    // Force IPv4
-    host: undefined // Let pg resolve DNS
+    idleTimeoutMillis: 30000
   });
   db = pool;
   console.log('[DB] Connecting to PostgreSQL (Supabase)...');
