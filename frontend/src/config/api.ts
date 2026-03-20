@@ -24,6 +24,7 @@ function getApiBaseUrl(): string {
   return 'https://nexus-pos-m0rz.onrender.com';
 }
 const API_PREFIX = '/api';
+const API_BASE_URL = getApiBaseUrl();
 
 function buildUrl(path: string): string {
   if (API_BASE_URL) {
