@@ -149,9 +149,13 @@ async function runMigrations() {
   
   console.log('[Migrations] Running PostgreSQL migrations...');
   
+  let dbUrl = databaseUrl;
+  if (!dbUrl.includes('sslmode')) {
+    dbUrl += dbUrl.includes('?') ? '&sslmode=require' : '?sslmode=require';
+  }
+  
   const pool = new Pool({
-    connectionString: databaseUrl,
-    ssl: { rejectUnauthorized: false }
+    connectionString: dbUrl
   });
   
   try {

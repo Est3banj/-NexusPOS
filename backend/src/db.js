@@ -7,6 +7,7 @@
 
 const path = require('path');
 const fs = require('fs');
+const https = require('https');
 
 const isProduction = !!process.env.DATABASE_URL;
 let db;
@@ -15,12 +16,14 @@ if (isProduction) {
   // PostgreSQL - Supabase/Production
   const { Pool } = require('pg');
   
-  // Parse DATABASE_URL
+  // Parse DATABASE_URL and ensure sslmode
   let connectionString = process.env.DATABASE_URL;
+  if (!connectionString.includes('sslmode')) {
+    connectionString += connectionString.includes('?') ? '&sslmode=require' : '?sslmode=require';
+  }
   
   const pool = new Pool({
     connectionString: connectionString,
-    ssl: false,
     connectionTimeoutMillis: 10000,
     idleTimeoutMillis: 30000
   });
