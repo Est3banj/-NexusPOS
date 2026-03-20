@@ -154,8 +154,14 @@ async function runMigrations() {
     dbUrl += dbUrl.includes('?') ? '&sslmode=require' : '?sslmode=require';
   }
   
+  const rdsCaPath = path.join(__dirname, '..', 'rds-ca-bundle.pem');
+  const fs = require('fs');
+  
   const pool = new Pool({
-    connectionString: dbUrl
+    connectionString: dbUrl,
+    ssl: {
+      ca: fs.readFileSync(rdsCaPath)
+    }
   });
   
   try {

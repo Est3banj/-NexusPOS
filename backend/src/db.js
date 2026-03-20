@@ -22,10 +22,16 @@ if (isProduction) {
     connectionString += connectionString.includes('?') ? '&sslmode=require' : '?sslmode=require';
   }
   
+    // Load Amazon RDS CA certificate
+  const rdsCaPath = path.join(__dirname, 'rds-ca-bundle.pem');
+  
   const pool = new Pool({
     connectionString: connectionString,
     connectionTimeoutMillis: 10000,
-    idleTimeoutMillis: 30000
+    idleTimeoutMillis: 30000,
+    ssl: {
+      ca: fs.readFileSync(rdsCaPath)
+    }
   });
   db = pool;
   console.log('[DB] Connecting to PostgreSQL (Supabase)...');
